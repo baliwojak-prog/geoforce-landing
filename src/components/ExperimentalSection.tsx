@@ -102,14 +102,14 @@ function ParticleVortex() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const count = 1500;
+    const count = 3000;
     const particles = Array.from({ length: count }, () => ({
       angle: Math.random() * Math.PI * 2,
       radius: Math.random() * 0.45,
       y: Math.random(),
       speed: 0.3 + Math.random() * 1.5,
-      size: 0.5 + Math.random() * 2,
-      alpha: 0.2 + Math.random() * 0.6,
+      size: 0.3 + Math.random() * 1,
+      alpha: 0.15 + Math.random() * 0.4,
     }));
 
     function frame() {
@@ -126,12 +126,12 @@ function ParticleVortex() {
       const scale = Math.min(w, h);
 
       for (const p of particles) {
-        p.angle += p.speed * 0.02;
-        p.y -= 0.003 * p.speed;
+        p.angle += p.speed * 0.015;
+        p.y -= 0.0015 * p.speed;
         if (p.y < -0.1) p.y = 1.1;
 
-        // Tighter at top, wider at bottom
-        const spread = 0.05 + p.y * p.radius;
+        // Tighter at top, wider at bottom — tighter vortex
+        const spread = 0.03 + p.y * p.radius * 0.7;
         const x = cx + Math.cos(p.angle) * spread * scale;
         const y = cy - (p.y - 0.5) * h * 0.8;
 
