@@ -162,7 +162,7 @@ export default function Home() {
               Investors
             </a>
             <a
-              href="#contact"
+              href="mailto:chris@gogwf.com?subject=Geoforce.ai%20Inquiry"
               className="px-4 py-2 bg-geo-lime hover:bg-geo-green text-geo-darker rounded-full text-sm font-medium transition-all"
             >
               Get in Touch
@@ -199,7 +199,7 @@ export default function Home() {
           <AnimatedSection delay={0.8}>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
               <a
-                href="#contact"
+                href="mailto:chris@gogwf.com?subject=Compute%20Access%20Request"
                 className="px-8 py-4 bg-geo-lime hover:bg-geo-green text-geo-darker font-bold rounded-full transition-all duration-300 text-sm"
               >
                 Request Compute Access
@@ -443,59 +443,41 @@ export default function Home() {
             />
           </AnimatedSection>
           <AnimatedSection delay={0.2}>
-            <div className="bg-geo-card border border-geo-border rounded-2xl p-8 md:p-12 text-left">
-              <form className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm text-geo-muted mb-2">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full bg-geo-darker border border-geo-border rounded-lg px-4 py-3 text-foreground placeholder:text-geo-muted/50 focus:outline-none focus:border-geo-lime/50 transition"
-                      placeholder="Your name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-geo-muted mb-2">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      className="w-full bg-geo-darker border border-geo-border rounded-lg px-4 py-3 text-foreground placeholder:text-geo-muted/50 focus:outline-none focus:border-geo-lime/50 transition"
-                      placeholder="you@company.com"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm text-geo-muted mb-2">
-                    I&apos;m interested in
-                  </label>
-                  <select className="w-full bg-geo-darker border border-geo-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:border-geo-lime/50 transition">
-                    <option>AI Compute Access</option>
-                    <option>Investment Opportunity</option>
-                    <option>Partnership / Integration</option>
-                    <option>Carbon MRV Services</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-geo-muted mb-2">
-                    Message
-                  </label>
-                  <textarea
-                    rows={4}
-                    className="w-full bg-geo-darker border border-geo-border rounded-lg px-4 py-3 text-foreground placeholder:text-geo-muted/50 focus:outline-none focus:border-geo-lime/50 transition resize-none"
-                    placeholder="Tell us about your needs..."
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full py-4 bg-geo-lime hover:bg-geo-green text-geo-darker font-bold rounded-full transition-all duration-300"
+            <div className="bg-geo-card border border-geo-border rounded-2xl p-8 md:p-12 text-center space-y-8">
+              <div className="space-y-4">
+                <p className="text-geo-muted">
+                  Reach out directly — we respond within 24 hours.
+                </p>
+                <a
+                  href="mailto:chris@gogwf.com?subject=Geoforce.ai%20Inquiry"
+                  className="inline-flex items-center gap-3 px-10 py-5 bg-geo-lime hover:bg-geo-green text-geo-darker font-bold rounded-full transition-all duration-300 text-lg"
                 >
-                  Send Message
-                </button>
-              </form>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  chris@gogwf.com
+                </a>
+              </div>
+              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-geo-border">
+                <a
+                  href="mailto:chris@gogwf.com?subject=Compute%20Access%20Request"
+                  className="py-3 px-4 border border-geo-border rounded-lg text-sm text-geo-muted hover:text-foreground hover:border-geo-lime/30 transition-all text-center"
+                >
+                  AI Compute
+                </a>
+                <a
+                  href="mailto:chris@gogwf.com?subject=Investment%20Inquiry%20-%20Geoforce.ai"
+                  className="py-3 px-4 border border-geo-border rounded-lg text-sm text-geo-muted hover:text-foreground hover:border-geo-lime/30 transition-all text-center"
+                >
+                  Investment
+                </a>
+                <a
+                  href="mailto:chris@gogwf.com?subject=Partnership%20Inquiry%20-%20Geoforce.ai"
+                  className="py-3 px-4 border border-geo-border rounded-lg text-sm text-geo-muted hover:text-foreground hover:border-geo-lime/30 transition-all text-center"
+                >
+                  Partnership
+                </a>
+              </div>
             </div>
           </AnimatedSection>
         </div>

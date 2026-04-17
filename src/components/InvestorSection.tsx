@@ -236,7 +236,7 @@ export default function InvestorSection() {
             {/* CTA */}
             <div className="text-center">
               <a
-                href="#contact"
+                href="mailto:chris@gogwf.com?subject=Investment%20Deck%20Request%20-%20Geoforce.ai"
                 className="inline-flex items-center gap-2 px-8 py-4 bg-geo-lime hover:bg-geo-green text-geo-darker font-bold rounded-full transition-all duration-300"
               >
                 Request Investment Deck
