@@ -9,6 +9,11 @@ import { useRef, useEffect, useCallback } from "react";
 function MagmaFlow() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const mouseRef = useRef<{ x: number; y: number; active: boolean }>({
+    x: 0.5,
+    y: 0.5,
+    active: false,
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -16,11 +21,24 @@ function MagmaFlow() {
     const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
     if (!gl) return;
 
+    function onMouseMove(e: MouseEvent) {
+      const rect = canvas!.getBoundingClientRect();
+      mouseRef.current.x = (e.clientX - rect.left) / rect.width;
+      mouseRef.current.y = 1.0 - (e.clientY - rect.top) / rect.height;
+      mouseRef.current.active = true;
+    }
+    function onMouseLeave() {
+      mouseRef.current.active = false;
+    }
+    canvas.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("mouseleave", onMouseLeave);
+
     const vs = `attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}`;
     const fs = `
       precision highp float;
       uniform float t;
       uniform vec2 r;
+      uniform vec3 mouse; // x, y (0-1), z = active
 
       vec3 hash(vec3 p){
         p=vec3(dot(p,vec3(127.1,311.7,74.7)),dot(p,vec3(269.5,183.3,246.1)),dot(p,vec3(113.5,271.9,124.6)));
@@ -37,8 +55,18 @@ function MagmaFlow() {
 
       void main(){
         vec2 uv=(gl_FragCoord.xy-0.5*r)/min(r.x,r.y);
-        float n=fbm(vec3(uv*3.0,t*0.3));
-        float n2=fbm(vec3(uv*2.0+n*1.5,t*0.2+10.0));
+
+        // Mouse gravity — warp UV toward cursor
+        if(mouse.z > 0.5){
+          vec2 muv=(mouse.xy-0.5)*2.0;
+          vec2 diff=muv-uv;
+          float d=length(diff);
+          float pull=0.6/(d*2.0+0.3);
+          uv+=diff*pull*0.15;
+        }
+
+        float n=fbm(vec3(uv*3.0,t*0.15));
+        float n2=fbm(vec3(uv*2.0+n*1.5,t*0.1+10.0));
         vec3 c1=vec3(0.77,0.9,0.19);  // lime
         vec3 c2=vec3(0.66,0.83,0.0);  // green
         vec3 c3=vec3(0.1,0.15,0.0);   // dark green
@@ -70,6 +98,7 @@ function MagmaFlow() {
 
     const tU = gl.getUniformLocation(pg, "t");
     const rU = gl.getUniformLocation(pg, "r");
+    const mU = gl.getUniformLocation(pg, "mouse");
     const start = Date.now();
 
     function frame() {
@@ -79,11 +108,17 @@ function MagmaFlow() {
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.uniform1f(tU, (Date.now() - start) / 1000);
       gl.uniform2f(rU, canvas.width, canvas.height);
+      const m = mouseRef.current;
+      gl.uniform3f(mU, m.x, m.y, m.active ? 1.0 : 0.0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       rafRef.current = requestAnimationFrame(frame);
     }
     frame();
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      canvas.removeEventListener("mousemove", onMouseMove);
+      canvas.removeEventListener("mouseleave", onMouseLeave);
+    };
   }, []);
 
   return <canvas ref={canvasRef} className="w-full h-full absolute inset-0" />;
