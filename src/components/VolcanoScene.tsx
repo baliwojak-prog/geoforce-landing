@@ -110,7 +110,10 @@ function EnergyOrb() {
       float glow = fresnel * 1.5;
       color += uColor1 * glow * 0.3;
 
-      float alpha = 0.7 + fresnel * 0.3;
+      // Fluctuating transparency — pulses between ~55% and 85%
+      float breathe = sin(uTime * 0.8) * 0.15;
+      float flicker = sin(uTime * 3.7 + vPosition.x * 2.0) * 0.05;
+      float alpha = 0.55 + fresnel * 0.3 + breathe + flicker;
 
       gl_FragColor = vec4(color, alpha);
     }
