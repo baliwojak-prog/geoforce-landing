@@ -1,7 +1,7 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
-import { useRef, useMemo } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useRef, useMemo, useEffect } from "react";
 import * as THREE from "three";
 
 /* ---------- Animated energy orb with custom shader ---------- */
@@ -229,6 +229,22 @@ function DataParticles() {
   );
 }
 
+function ResponsiveCamera() {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    function handleResize() {
+      const isMobile = window.innerWidth < 768;
+      camera.position.z = isMobile ? 12 : 7;
+    }
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [camera]);
+
+  return null;
+}
+
 export default function VolcanoScene() {
   return (
     <div className="absolute inset-0 z-0">
@@ -237,6 +253,7 @@ export default function VolcanoScene() {
         gl={{ antialias: true, alpha: true }}
         style={{ background: "transparent" }}
       >
+        <ResponsiveCamera />
         <ambientLight intensity={0.1} />
         <EnergyOrb />
         <EnergyRings />
