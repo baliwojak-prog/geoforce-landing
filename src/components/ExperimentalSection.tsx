@@ -56,13 +56,13 @@ function MagmaFlow() {
       void main(){
         vec2 uv=(gl_FragCoord.xy-0.5*r)/min(r.x,r.y);
 
-        // Mouse gravity — warp UV toward cursor
+        // Mouse gravity — gentle warp toward cursor
         if(mouse.z > 0.5){
           vec2 muv=(mouse.xy-0.5)*2.0;
           vec2 diff=muv-uv;
           float d=length(diff);
-          float pull=0.6/(d*2.0+0.3);
-          uv+=diff*pull*0.15;
+          float pull=smoothstep(1.5,0.0,d)*0.08;
+          uv+=diff*pull;
         }
 
         float n=fbm(vec3(uv*3.0,t*0.15));
@@ -231,8 +231,8 @@ function NeuralMesh() {
     const nodes = Array.from({ length: nodeCount }, () => ({
       x: Math.random(),
       y: Math.random(),
-      vx: (Math.random() - 0.5) * 0.001,
-      vy: (Math.random() - 0.5) * 0.001,
+      vx: (Math.random() - 0.5) * 0.003,
+      vy: (Math.random() - 0.5) * 0.003,
       size: 2 + Math.random() * 3,
       pulse: Math.random() * Math.PI * 2,
     }));
@@ -251,20 +251,20 @@ function NeuralMesh() {
 
       // Move nodes
       for (const n of nodes) {
-        // Mouse gravity — slow pull
+        // Mouse gravity — stronger pull
         if (mouse.active) {
           const dx = mouse.x - n.x;
           const dy = mouse.y - n.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist > 0.01 && dist < 0.5) {
-            const force = 0.00015 / (dist + 0.05);
+          if (dist > 0.01 && dist < 0.6) {
+            const force = 0.0008 / (dist + 0.03);
             n.vx += dx * force;
             n.vy += dy * force;
           }
         }
 
         // Dampen velocity
-        n.vx *= 0.995;
+        n.vx *= 0.985;
         n.vy *= 0.995;
 
         n.x += n.vx;
