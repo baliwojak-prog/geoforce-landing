@@ -7,6 +7,7 @@ import {
 import CountUp from "@/components/CountUp";
 import { VolcanoHero, Embers } from "@/components/ClientScenes";
 import ImagePlaceholder from "@/components/ImagePlaceholder";
+import Image from "next/image";
 
 const stats = [
   { value: "50", suffix: " MW", label: "Geothermal Baseload", sub: "per site" },
@@ -141,12 +142,13 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-geo-darker/80 backdrop-blur-xl border-b border-geo-border">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-geo-lime to-geo-green flex items-center justify-center font-bold text-geo-darker text-sm">
-              G
-            </div>
-            <span className="font-bold text-lg tracking-tight">
-              GEOFORCE<span className="text-geo-lime">.AI</span>
-            </span>
+            <Image
+              src="/images/logo-dark.png"
+              alt="Geoforce"
+              width={140}
+              height={40}
+              className="h-8 w-auto"
+            />
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-geo-muted">
             <a href="#problem" className="hover:text-foreground transition">
@@ -238,8 +240,18 @@ export default function Home() {
       <div className="glow-line" />
 
       {/* Problem */}
-      <section id="problem" className="py-24 px-6">
-        <div className="max-w-6xl mx-auto">
+      <section id="problem" className="py-24 px-6 relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <Image
+            src="/images/coal-crisis.png"
+            alt=""
+            fill
+            className="object-cover opacity-10"
+            sizes="100vw"
+          />
+          <div className="absolute inset-0 bg-geo-darker/80" />
+        </div>
+        <div className="max-w-6xl mx-auto relative z-10">
           <AnimatedSection className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               The <span className="gradient-text">Crisis</span>
@@ -282,12 +294,19 @@ export default function Home() {
               sustainable, and scalable across Indonesia&apos;s volcanic belt.
             </p>
           </AnimatedSection>
-          {/* Hero image placeholder */}
+          {/* Hero image */}
           <AnimatedSection className="mb-12">
-            <ImagePlaceholder
-              label="HERO IMAGE — Geothermal plant aerial / volcanic landscape / datacenter + volcano composite"
-              aspect="aspect-[21/9]"
-            />
+            <div className="relative aspect-[21/9] rounded-2xl overflow-hidden border border-geo-border">
+              <Image
+                src="/images/hero-volcano.png"
+                alt="Geothermal power plant at the base of a volcano in Indonesia"
+                fill
+                className="object-cover object-center"
+                sizes="(max-width: 768px) 100vw, 1152px"
+                priority
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-geo-darker/60 via-transparent to-transparent" />
+            </div>
           </AnimatedSection>
 
           <StaggerContainer className="grid md:grid-cols-2 gap-8" staggerDelay={0.12}>
@@ -326,14 +345,26 @@ export default function Home() {
           {/* Image row */}
           <AnimatedSection className="mb-12">
             <div className="grid md:grid-cols-2 gap-6">
-              <ImagePlaceholder
-                label="IMAGE — Geothermal wells / drilling site / steam vents"
-                aspect="aspect-[4/3]"
-              />
-              <ImagePlaceholder
-                label="IMAGE — Immersion-cooled GPU datacenter / server room"
-                aspect="aspect-[4/3]"
-              />
+              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border border-geo-border">
+                <Image
+                  src="/images/geothermal-plant.png"
+                  alt="Kamojang geothermal power plant in Indonesian rainforest"
+                  fill
+                  className="object-cover object-center"
+                  sizes="(max-width: 768px) 100vw, 560px"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-geo-darker/50 via-transparent to-transparent" />
+              </div>
+              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border border-geo-border">
+                <Image
+                  src="/images/datacenter-gpus.png"
+                  alt="High-density H100 GPU datacenter with immersion cooling"
+                  fill
+                  className="object-cover object-center"
+                  sizes="(max-width: 768px) 100vw, 560px"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-geo-darker/50 via-transparent to-transparent" />
+              </div>
             </div>
           </AnimatedSection>
 
@@ -437,10 +468,16 @@ export default function Home() {
             </p>
           </AnimatedSection>
           <AnimatedSection delay={0.15} className="mb-8">
-            <ImagePlaceholder
-              label="IMAGE — Indonesia Ring of Fire map / volcanic belt / site locations"
-              aspect="aspect-[3/1]"
-            />
+            <div className="relative aspect-[3/1] rounded-2xl overflow-hidden border border-geo-border">
+              <Image
+                src="/images/indonesia-map.png"
+                alt="Indonesia geothermal sites map showing exploration and production permits"
+                fill
+                className="object-cover object-top"
+                sizes="(max-width: 768px) 100vw, 768px"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-geo-darker/70 via-geo-darker/20 to-transparent" />
+            </div>
           </AnimatedSection>
           <AnimatedSection delay={0.2}>
             <div className="bg-geo-card border border-geo-border rounded-2xl p-8 md:p-12 text-center space-y-8">
@@ -487,12 +524,13 @@ export default function Home() {
       <footer className="border-t border-geo-border py-12 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-gradient-to-br from-geo-lime to-geo-green flex items-center justify-center font-bold text-geo-darker text-xs">
-              G
-            </div>
-            <span className="font-bold text-sm">
-              GEOFORCE<span className="text-geo-lime">.AI</span>
-            </span>
+            <Image
+              src="/images/logo-dark.png"
+              alt="Geoforce"
+              width={120}
+              height={34}
+              className="h-6 w-auto"
+            />
           </div>
           <p className="text-xs text-geo-muted">
             They&apos;re renting clouds. We&apos;re owning volcanoes.
