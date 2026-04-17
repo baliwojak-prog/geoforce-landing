@@ -492,7 +492,7 @@ export default function ExperimentalSection() {
             >
               <Component />
               <div className="absolute inset-0 bg-gradient-to-t from-geo-darker via-transparent to-transparent pointer-events-none" />
-              <div className="absolute bottom-0 left-0 right-0 p-6 z-10">
+              <div className="absolute bottom-0 left-0 right-0 p-6 z-10 pointer-events-none">
                 <h3 className="font-bold text-lg mb-1">{title}</h3>
                 <p className="text-xs text-geo-muted">{desc}</p>
               </div>
