@@ -590,7 +590,7 @@ function drawTerrain(
 
       const y = row / rows;
       const screenX = col * cellW;
-      const elevation = noise(x * 4, y * 4, seed) * cellH * 3.0;
+      const elevation = noise(x * 4, y * 4, seed) * cellH * 6.0;
       const screenY = offsetY + row * cellH - elevation;
 
       // Fade at reveal edge
@@ -599,7 +599,7 @@ function drawTerrain(
 
       if (col < cols - 1 && (col + 1) / cols <= revealX) {
         const nextX = (col + 1) * cellW;
-        const nextElev = noise((col + 1) / cols * 4, y * 4, seed) * cellH * 3.0;
+        const nextElev = noise((col + 1) / cols * 4, y * 4, seed) * cellH * 6.0;
         const nextY = offsetY + row * cellH - nextElev;
 
         ctx.beginPath();
@@ -610,7 +610,7 @@ function drawTerrain(
         ctx.stroke();
       }
       if (row < rows - 1) {
-        const nextElev = noise(x * 4, (row + 1) / rows * 4, seed) * cellH * 3.0;
+        const nextElev = noise(x * 4, (row + 1) / rows * 4, seed) * cellH * 6.0;
         const nextY = offsetY + (row + 1) * cellH - nextElev;
 
         ctx.beginPath();
