@@ -1,26 +1,53 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: #0a0a0a;
+  --color-foreground: #ededed;
+  --color-geo-lime: #c5e531;
+  --color-geo-green: #a8d400;
+  --color-geo-yellow: #d4e94c;
+  --color-geo-dark: #1a1a1a;
+  --color-geo-darker: #111111;
+  --color-geo-card: #1e1e1e;
+  --color-geo-border: #2a2a2a;
+  --color-geo-muted: #9ca3af;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-geo-darker);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Glowing gradient line */
+.glow-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-geo-lime), var(--color-geo-green), transparent);
+}
+
+/* Animated gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-geo-lime), var(--color-geo-yellow), var(--color-geo-green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Subtle grid bg */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(197, 229, 49, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(197, 229, 49, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Radial glow */
+.radial-glow {
+  background: radial-gradient(ellipse at center, rgba(197, 229, 49, 0.06) 0%, transparent 70%);
 }
