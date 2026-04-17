@@ -341,6 +341,9 @@ function NeuralMesh() {
 function TerrainScanner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const COLS = 50;
+  const ROWS = 35;
+
   const stateRef = useRef({
     hovering: false,
     scanPass: 0,
@@ -350,9 +353,10 @@ function TerrainScanner() {
     completedPasses: 0,
     phase: "idle" as "idle" | "scanning" | "collapse" | "rebuilding",
     collapseProgress: 0,
-    // Single heightmap that accumulates
-    heightmap: null as Float32Array | null,
-    currentPassRevealed: 0, // how far the current pass scan has reached (column index)
+    // Current visible heightmap
+    heightmap: new Float32Array(COLS * ROWS),
+    // Target heightmap for current pass (what we're scanning toward)
+    targetMap: new Float32Array(COLS * ROWS),
   });
 
   const noise = useCallback((x: number, y: number, seed: number) => {
@@ -393,100 +397,100 @@ function TerrainScanner() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const cols = COLS;
+    const rows = ROWS;
+
+    // Generate a full heightmap from a seed
+    function generateHeightmap(seed: number): Float32Array<ArrayBuffer> {
+      const hm = new Float32Array(cols * rows);
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          hm[row * cols + col] = noise(col / cols * 4, row / rows * 4, seed);
+        }
+      }
+      return hm;
+    }
+
+    // Init idle terrain
+    const st = stateRef.current;
+    st.heightmap = generateHeightmap(st.seed);
+
+    function startNewPass() {
+      const passSeed = st.seed + st.scanPass * 137.7 + st.scanPass * st.scanPass * 43.1;
+      st.targetMap = generateHeightmap(passSeed);
+      st.scanProgress = 0;
+    }
+
     function onMouseEnter() {
-      const st = stateRef.current;
       if (st.phase === "idle") {
         st.phase = "scanning";
         st.scanPass = 0;
-        st.scanProgress = 0;
         st.completedPasses = 0;
         st.seed = Math.random() * 1000;
-        st.heightmap = new Float32Array(cols * rows);
         st.collapseProgress = 0;
+        startNewPass();
       }
       st.hovering = true;
     }
     function onMouseLeave() {
-      stateRef.current.hovering = false;
+      st.hovering = false;
     }
     canvas.addEventListener("mouseenter", onMouseEnter);
     canvas.addEventListener("mouseleave", onMouseLeave);
 
-    const cols = 50;
-    const rows = 35;
-
-    // Build one pass of elevation data and add it to heightmap
-    function addPassToHeightmap(heightmap: Float32Array, passSeed: number) {
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          const x = col / cols;
-          const y = row / rows;
-          const elev = noise(x * 4, y * 4, passSeed);
-          heightmap[row * cols + col] += elev;
-        }
-      }
-    }
-
-    function drawHeightmapTerrain(
+    function drawGrid(
       heightmap: Float32Array,
       alpha: number,
       yOffset: number,
-      revealCol: number, // -1 = all revealed
+      scanCol: number, // -1 = no scan line
     ) {
       if (!ctx) return;
       const w2 = canvas!.width;
       const h2 = canvas!.height;
-      const cellW2 = w2 / cols;
-      const cellH2 = h2 / rows * 0.55;
+      const cW = w2 / cols;
+      const cH = h2 / rows * 0.55;
       const baseY = h2 * 0.2 + yOffset;
 
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
-          if (revealCol >= 0 && col > revealCol) continue;
+          const elev = heightmap[row * cols + col] * cH * 6.0;
+          const sx = col * cW;
+          const sy = baseY + row * cH - elev;
 
-          const elev = heightmap[row * cols + col] * cellH2 * 6.0;
-          const sx = col * cellW2;
-          const sy = baseY + row * cellH2 - elev;
-
-          // Brightness based on elevation
-          const elevNorm = Math.min(Math.abs(heightmap[row * cols + col]) / 2, 1);
-          const r = Math.round(143 + elevNorm * 54);
-          const g = Math.round(188 + elevNorm * 41);
+          const elevNorm = Math.min(Math.abs(heightmap[row * cols + col]) / 1.5, 1);
+          const r = Math.round(120 + elevNorm * 77);
+          const g = Math.round(170 + elevNorm * 59);
           const b = Math.round(0 + elevNorm * 49);
 
-          // Edge glow at scan line
-          const edgeGlow = (revealCol >= 0 && Math.abs(col - revealCol) < 3) ? 0.5 : 0;
-          const a = alpha + edgeGlow;
+          // Scan edge glow
+          const atEdge = scanCol >= 0 && Math.abs(col - scanCol) < 3;
+          const a = atEdge ? alpha + 0.5 : alpha;
 
-          // Horizontal line
-          if (col < cols - 1 && (revealCol < 0 || col + 1 <= revealCol)) {
-            const nextElev = heightmap[row * cols + col + 1] * cellH2 * 6.0;
-            const nx = (col + 1) * cellW2;
-            const ny = baseY + row * cellH2 - nextElev;
+          // Horizontal
+          if (col < cols - 1) {
+            const ne = heightmap[row * cols + col + 1] * cH * 6.0;
             ctx.beginPath();
             ctx.moveTo(sx, sy);
-            ctx.lineTo(nx, ny);
+            ctx.lineTo((col + 1) * cW, baseY + row * cH - ne);
             ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
-            ctx.lineWidth = 0.7;
+            ctx.lineWidth = atEdge ? 1.2 : 0.7;
             ctx.stroke();
           }
-          // Vertical line
+          // Vertical
           if (row < rows - 1) {
-            const nextElev = heightmap[(row + 1) * cols + col] * cellH2 * 6.0;
-            const ny = baseY + (row + 1) * cellH2 - nextElev;
+            const ne = heightmap[(row + 1) * cols + col] * cH * 6.0;
             ctx.beginPath();
             ctx.moveTo(sx, sy);
-            ctx.lineTo(sx, ny);
+            ctx.lineTo(sx, baseY + (row + 1) * cH - ne);
             ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
-            ctx.lineWidth = 0.7;
+            ctx.lineWidth = atEdge ? 1.2 : 0.7;
             ctx.stroke();
           }
 
-          // Vertex dot at scan edge
-          if (edgeGlow > 0) {
+          if (atEdge) {
             ctx.beginPath();
             ctx.arc(sx, sy, 1.5 * devicePixelRatio, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(197,229,49,${edgeGlow})`;
+            ctx.fillStyle = `rgba(197,229,49,0.7)`;
             ctx.fill();
           }
         }
@@ -502,21 +506,29 @@ function TerrainScanner() {
       ctx.fillStyle = "#111111";
       ctx.fillRect(0, 0, w, h);
 
-      const st = stateRef.current;
-
       // State machine
-      if (st.phase === "scanning" && st.hovering && st.heightmap) {
+      if (st.phase === "scanning" && st.hovering) {
         st.scanProgress += 0.006;
+        const scanCol = Math.floor(st.scanProgress * cols);
+
+        // Write target heights into visible heightmap column by column
+        for (let row = 0; row < rows; row++) {
+          const idx = row * cols + scanCol;
+          if (scanCol < cols) {
+            st.heightmap[idx] = st.targetMap[idx];
+          }
+        }
+
         if (st.scanProgress >= 1) {
-          // Pass complete — bake this pass into the heightmap
-          const passSeed = st.seed + st.scanPass * 137.7 + st.scanPass * st.scanPass * 43.1;
-          addPassToHeightmap(st.heightmap, passSeed);
+          // Pass done — entire heightmap is now the target
           st.completedPasses++;
           st.scanPass++;
           st.scanProgress = 0;
           if (st.scanPass >= st.totalPasses) {
             st.phase = "collapse";
             st.collapseProgress = 0;
+          } else {
+            startNewPass();
           }
         }
       } else if (st.phase === "collapse") {
@@ -532,23 +544,23 @@ function TerrainScanner() {
           st.scanPass = 0;
           st.scanProgress = 0;
           st.completedPasses = 0;
-          st.heightmap = null;
           st.seed = Math.random() * 1000;
+          st.heightmap = generateHeightmap(st.seed);
           st.collapseProgress = 0;
         }
       }
 
       // Draw
-      if (st.phase === "collapse" && st.heightmap) {
-        const collapse = st.collapseProgress;
-        const eased = collapse * collapse;
-        const shake = Math.sin(collapse * 30) * (1 - collapse) * 3 * devicePixelRatio;
+      if (st.phase === "collapse") {
+        const c = st.collapseProgress;
+        const eased = c * c;
+        const shake = Math.sin(c * 30) * (1 - c) * 3 * devicePixelRatio;
         ctx.save();
         ctx.translate(shake, 0);
-        drawHeightmapTerrain(st.heightmap, 0.35 * (1 - collapse), eased * h * 0.8, -1);
+        drawGrid(st.heightmap, 0.35 * (1 - c), eased * h * 0.8, -1);
         ctx.restore();
 
-        ctx.fillStyle = `rgba(197,229,49,${0.6 * (1 - collapse)})`;
+        ctx.fillStyle = `rgba(197,229,49,${0.6 * (1 - c)})`;
         ctx.font = `${11 * devicePixelRatio}px monospace`;
         ctx.fillText(`COLLAPSE`, 10 * devicePixelRatio, 20 * devicePixelRatio);
 
@@ -557,24 +569,9 @@ function TerrainScanner() {
         ctx.font = `${11 * devicePixelRatio}px monospace`;
         ctx.fillText(`RECALIBRATING...`, 10 * devicePixelRatio, 20 * devicePixelRatio);
 
-      } else if (st.phase === "scanning" && st.heightmap) {
-        // Draw accumulated terrain so far
-        drawHeightmapTerrain(st.heightmap, 0.3, 0, -1);
-
-        // Draw current pass being scanned (additive preview)
-        const passSeed = st.seed + st.scanPass * 137.7 + st.scanPass * st.scanPass * 43.1;
-        const revealCol = Math.floor(st.scanProgress * cols);
-
-        // Temp heightmap with current pass added
-        const preview = new Float32Array(st.heightmap);
-        for (let row = 0; row < rows; row++) {
-          for (let col = 0; col <= revealCol && col < cols; col++) {
-            const x = col / cols;
-            const y = row / rows;
-            preview[row * cols + col] += noise(x * 4, y * 4, passSeed);
-          }
-        }
-        drawHeightmapTerrain(preview, 0.35, 0, revealCol);
+      } else if (st.phase === "scanning") {
+        const scanCol = Math.floor(st.scanProgress * cols);
+        drawGrid(st.heightmap, 0.3, 0, scanCol);
 
         // Scan beam
         const beamX = st.scanProgress * w;
@@ -590,14 +587,7 @@ function TerrainScanner() {
         ctx.fillText(`PASS ${st.scanPass + 1}/${st.totalPasses}`, 10 * devicePixelRatio, 20 * devicePixelRatio);
 
       } else if (st.phase === "idle") {
-        // Faint flat grid
-        const idle = new Float32Array(cols * rows);
-        for (let row = 0; row < rows; row++) {
-          for (let col = 0; col < cols; col++) {
-            idle[row * cols + col] = noise(col / cols * 4, row / rows * 4, st.seed) * 0.15;
-          }
-        }
-        drawHeightmapTerrain(idle, 0.06, 0, -1);
+        drawGrid(st.heightmap, 0.08, 0, -1);
         ctx.fillStyle = `rgba(197,229,49,0.3)`;
         ctx.font = `${11 * devicePixelRatio}px monospace`;
         ctx.fillText(`HOVER TO SCAN`, 10 * devicePixelRatio, 20 * devicePixelRatio);
