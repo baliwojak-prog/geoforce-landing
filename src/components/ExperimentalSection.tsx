@@ -127,8 +127,8 @@ function ParticleVortex() {
 
       for (const p of particles) {
         p.angle += p.speed * 0.015;
-        p.y -= 0.0015 * p.speed;
-        if (p.y < -0.1) p.y = 1.1;
+        p.y += 0.0015 * p.speed;
+        if (p.y > 1.1) p.y = -0.1;
 
         // Tighter at top, wider at bottom — tighter vortex
         const spread = 0.03 + p.y * p.radius * 0.7;
@@ -168,6 +168,11 @@ function ParticleVortex() {
 function NeuralMesh() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const mouseRef = useRef<{ x: number; y: number; active: boolean }>({
+    x: 0,
+    y: 0,
+    active: false,
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -175,7 +180,19 @@ function NeuralMesh() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const nodeCount = 60;
+    function onMouseMove(e: MouseEvent) {
+      const rect = canvas!.getBoundingClientRect();
+      mouseRef.current.x = (e.clientX - rect.left) / rect.width;
+      mouseRef.current.y = (e.clientY - rect.top) / rect.height;
+      mouseRef.current.active = true;
+    }
+    function onMouseLeave() {
+      mouseRef.current.active = false;
+    }
+    canvas.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("mouseleave", onMouseLeave);
+
+    const nodeCount = 90;
     const nodes = Array.from({ length: nodeCount }, () => ({
       x: Math.random(),
       y: Math.random(),
@@ -195,9 +212,26 @@ function NeuralMesh() {
       ctx.fillRect(0, 0, w, h);
 
       const t = Date.now() / 1000;
+      const mouse = mouseRef.current;
 
       // Move nodes
       for (const n of nodes) {
+        // Mouse gravity — slow pull
+        if (mouse.active) {
+          const dx = mouse.x - n.x;
+          const dy = mouse.y - n.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > 0.01 && dist < 0.5) {
+            const force = 0.00015 / (dist + 0.05);
+            n.vx += dx * force;
+            n.vy += dy * force;
+          }
+        }
+
+        // Dampen velocity
+        n.vx *= 0.995;
+        n.vy *= 0.995;
+
         n.x += n.vx;
         n.y += n.vy;
         if (n.x < 0 || n.x > 1) n.vx *= -1;
@@ -206,8 +240,8 @@ function NeuralMesh() {
         n.y = Math.max(0, Math.min(1, n.y));
       }
 
-      // Draw connections
-      const maxDist = 0.2;
+      // Draw connections — doubled range
+      const maxDist = 0.4;
       for (let i = 0; i < nodeCount; i++) {
         for (let j = i + 1; j < nodeCount; j++) {
           const dx = nodes[i].x - nodes[j].x;
@@ -255,7 +289,11 @@ function NeuralMesh() {
       rafRef.current = requestAnimationFrame(frame);
     }
     frame();
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      canvas.removeEventListener("mousemove", onMouseMove);
+      canvas.removeEventListener("mouseleave", onMouseLeave);
+    };
   }, []);
 
   return <canvas ref={canvasRef} className="w-full h-full absolute inset-0" />;
@@ -381,7 +419,7 @@ const experiments = [
   {
     Component: ParticleVortex,
     title: "Particle Vortex",
-    desc: "1,500 particles spiraling in a geothermal updraft formation",
+    desc: "3,000 particles spiraling in a geothermal updraft formation",
   },
   {
     Component: NeuralMesh,
