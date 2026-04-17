@@ -5,7 +5,7 @@ import {
   StaggerItem,
 } from "@/components/AnimatedSection";
 import CountUp from "@/components/CountUp";
-import { VolcanoHero, Embers } from "@/components/ClientScenes";
+import { VolcanoHero, Embers, Experimental } from "@/components/ClientScenes";
 import ImagePlaceholder from "@/components/ImagePlaceholder";
 import Image from "next/image";
 
@@ -519,6 +519,11 @@ export default function Home() {
           </AnimatedSection>
         </div>
       </section>
+
+      <div className="glow-line" />
+
+      {/* Experimental Visual Lab */}
+      <Experimental />
 
       {/* Footer */}
       <footer className="border-t border-geo-border py-12 px-6">

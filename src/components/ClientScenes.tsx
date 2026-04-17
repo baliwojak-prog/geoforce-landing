@@ -17,3 +17,12 @@ export function VolcanoHero() {
 export function Embers() {
   return <EmberParticles />;
 }
+
+const ExperimentalSection = dynamic(
+  () => import("@/components/ExperimentalSection"),
+  { ssr: false }
+);
+
+export function Experimental() {
+  return <ExperimentalSection />;
+}
