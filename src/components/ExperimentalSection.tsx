@@ -144,7 +144,7 @@ function ParticleVortex() {
       y: Math.random(),
       speed: 0.3 + Math.random() * 1.5,
       size: 0.3 + Math.random() * 1,
-      alpha: 0.15 + Math.random() * 0.4,
+      alpha: 0.3 + Math.random() * 0.7,
     }));
 
     function frame() {
@@ -341,11 +341,22 @@ function NeuralMesh() {
 function TerrainScanner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const stateRef = useRef({
+    hovering: false,
+    scanPass: 0,
+    scanProgress: 0, // 0-1 per pass
+    totalPasses: 7,
+    seed: Math.random() * 1000,
+    revealedPasses: 0,
+    phase: "idle" as "idle" | "scanning" | "collapse" | "rebuilding",
+    collapseProgress: 0,
+    layers: [] as { seed: number; alpha: number; color: [number, number, number] }[],
+  });
 
-  const noise = useCallback((x: number, y: number) => {
-    const s = Math.sin(x * 1.2 + y * 0.8) * 0.5 +
-              Math.sin(x * 0.7 - y * 1.5) * 0.3 +
-              Math.sin(x * 2.5 + y * 2.1) * 0.2;
+  const noise = useCallback((x: number, y: number, seed: number) => {
+    const s = Math.sin((x + seed) * 1.2 + y * 0.8) * 0.5 +
+              Math.sin(x * 0.7 - (y + seed) * 1.5) * 0.3 +
+              Math.sin((x + seed * 0.5) * 2.5 + y * 2.1) * 0.2;
     return s;
   }, []);
 
@@ -355,8 +366,36 @@ function TerrainScanner() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const cols = 40;
-    const rows = 30;
+    function onMouseEnter() {
+      const st = stateRef.current;
+      if (st.phase === "idle") {
+        st.phase = "scanning";
+        st.scanPass = 0;
+        st.scanProgress = 0;
+        st.revealedPasses = 0;
+        st.layers = [];
+        st.seed = Math.random() * 1000;
+      }
+      st.hovering = true;
+    }
+    function onMouseLeave() {
+      stateRef.current.hovering = false;
+    }
+    canvas.addEventListener("mouseenter", onMouseEnter);
+    canvas.addEventListener("mouseleave", onMouseLeave);
+
+    const cols = 50;
+    const rows = 35;
+
+    const passColors: [number, number, number][] = [
+      [197, 229, 49],   // lime
+      [168, 212, 0],    // green
+      [212, 233, 76],   // yellow-lime
+      [143, 188, 0],    // darker green
+      [197, 229, 49],   // lime
+      [180, 220, 30],   // mid
+      [210, 240, 60],   // bright
+    ];
 
     function frame() {
       if (!canvas || !ctx) return;
@@ -367,79 +406,203 @@ function TerrainScanner() {
       ctx.fillStyle = "#111111";
       ctx.fillRect(0, 0, w, h);
 
-      const t = Date.now() / 1000;
-      const scanX = (Math.sin(t * 0.5) * 0.5 + 0.5); // 0-1 sweep
-
+      const st = stateRef.current;
       const cellW = w / cols;
-      const cellH = h / rows * 0.6;
-      const offsetY = h * 0.25;
+      const cellH = h / rows * 0.55;
+      const offsetY = h * 0.2;
 
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          const x = col / cols;
-          const y = row / rows;
-
-          // Isometric-ish projection
-          const screenX = col * cellW;
-          const elevation = noise(x * 4 + t * 0.2, y * 4) * cellH * 1.5;
-          const screenY = offsetY + row * cellH - elevation;
-
-          // Distance from scan line
-          const scanDist = Math.abs(x - scanX);
-          const scanIntensity = Math.max(0, 1 - scanDist * 8);
-          const baseAlpha = 0.08 + scanIntensity * 0.7;
-
-          // Draw grid lines
-          if (col < cols - 1) {
-            const nextX = (col + 1) * cellW;
-            const nextElev = noise((col + 1) / cols * 4 + t * 0.2, y * 4) * cellH * 1.5;
-            const nextY = offsetY + row * cellH - nextElev;
-
-            ctx.beginPath();
-            ctx.moveTo(screenX, screenY);
-            ctx.lineTo(nextX, nextY);
-            ctx.strokeStyle = `rgba(197,229,49,${baseAlpha})`;
-            ctx.lineWidth = scanIntensity > 0.3 ? 1.5 : 0.5;
-            ctx.stroke();
+      // State machine
+      if (st.phase === "scanning" && st.hovering) {
+        st.scanProgress += 0.012;
+        if (st.scanProgress >= 1) {
+          st.layers.push({
+            seed: st.seed + st.scanPass * 17.3,
+            alpha: 0.15 + (st.scanPass / st.totalPasses) * 0.25,
+            color: passColors[st.scanPass % passColors.length],
+          });
+          st.revealedPasses++;
+          st.scanPass++;
+          st.scanProgress = 0;
+          if (st.scanPass >= st.totalPasses) {
+            st.phase = "collapse";
+            st.collapseProgress = 0;
           }
-          if (row < rows - 1) {
-            const nextElev = noise(x * 4 + t * 0.2, (row + 1) / rows * 4) * cellH * 1.5;
-            const nextY = offsetY + (row + 1) * cellH - nextElev;
-
-            ctx.beginPath();
-            ctx.moveTo(screenX, screenY);
-            ctx.lineTo(screenX, nextY);
-            ctx.strokeStyle = `rgba(197,229,49,${baseAlpha})`;
-            ctx.lineWidth = scanIntensity > 0.3 ? 1.5 : 0.5;
-            ctx.stroke();
-          }
-
-          // Bright dots at scan line
-          if (scanIntensity > 0.5) {
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, 2 * devicePixelRatio, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(197,229,49,${scanIntensity})`;
-            ctx.fill();
-          }
+        }
+      } else if (st.phase === "collapse") {
+        st.collapseProgress += 0.008;
+        if (st.collapseProgress >= 1) {
+          st.phase = "rebuilding";
+          st.collapseProgress = 0;
+        }
+      } else if (st.phase === "rebuilding") {
+        st.collapseProgress += 0.02;
+        if (st.collapseProgress >= 1) {
+          // Reset with brand new seed
+          st.phase = "idle";
+          st.scanPass = 0;
+          st.scanProgress = 0;
+          st.revealedPasses = 0;
+          st.layers = [];
+          st.seed = Math.random() * 1000;
+          st.collapseProgress = 0;
         }
       }
 
-      // Scan line beam
-      const beamX = scanX * w;
-      const grad = ctx.createLinearGradient(beamX - 30, 0, beamX + 30, 0);
-      grad.addColorStop(0, "rgba(197,229,49,0)");
-      grad.addColorStop(0.5, "rgba(197,229,49,0.15)");
-      grad.addColorStop(1, "rgba(197,229,49,0)");
-      ctx.fillStyle = grad;
-      ctx.fillRect(beamX - 30, 0, 60, h);
+      // Draw based on phase
+      if (st.phase === "collapse") {
+        // Collapse animation — terrain falls and fades
+        const collapse = st.collapseProgress;
+        const eased = collapse * collapse; // accelerating fall
+        for (const layer of st.layers) {
+          drawTerrain(ctx, cols, rows, cellW, cellH, offsetY + eased * h * 0.8, w, h,
+            layer.seed, layer.alpha * (1 - collapse), layer.color, 1.0, noise);
+        }
+        // Shake effect
+        const shake = Math.sin(collapse * 30) * (1 - collapse) * 3 * devicePixelRatio;
+        ctx.save();
+        ctx.translate(shake, 0);
+        ctx.restore();
+
+        ctx.fillStyle = `rgba(197,229,49,${0.6 * (1 - collapse)})`;
+        ctx.font = `${11 * devicePixelRatio}px monospace`;
+        ctx.fillText(`COLLAPSE`, 10 * devicePixelRatio, 20 * devicePixelRatio);
+      } else if (st.phase === "rebuilding") {
+        // Brief dark pause before idle
+        const fade = st.collapseProgress;
+        ctx.fillStyle = `rgba(197,229,49,${0.3 * fade})`;
+        ctx.font = `${11 * devicePixelRatio}px monospace`;
+        ctx.fillText(`RECALIBRATING...`, 10 * devicePixelRatio, 20 * devicePixelRatio);
+      } else {
+        // Draw revealed layers
+        for (const layer of st.layers) {
+          drawTerrain(ctx, cols, rows, cellW, cellH, offsetY, w, h, layer.seed, layer.alpha, layer.color, 1.0, noise);
+        }
+
+        // Draw current scanning pass
+        if (st.phase === "scanning" && st.scanPass < st.totalPasses) {
+          const currentSeed = st.seed + st.scanPass * 17.3;
+          const currentColor = passColors[st.scanPass % passColors.length];
+          const scanX = st.scanProgress;
+
+          drawTerrain(ctx, cols, rows, cellW, cellH, offsetY, w, h, currentSeed, 0.3, currentColor, scanX, noise);
+
+          // Scan beam
+          const beamX = scanX * w;
+          const grad = ctx.createLinearGradient(beamX - 40, 0, beamX + 40, 0);
+          grad.addColorStop(0, "rgba(197,229,49,0)");
+          grad.addColorStop(0.5, `rgba(${currentColor[0]},${currentColor[1]},${currentColor[2]},0.25)`);
+          grad.addColorStop(1, "rgba(197,229,49,0)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(beamX - 40, 0, 80, h);
+
+          ctx.beginPath();
+          ctx.moveTo(beamX, 0);
+          ctx.lineTo(beamX, h);
+          ctx.strokeStyle = `rgba(${currentColor[0]},${currentColor[1]},${currentColor[2]},0.5)`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = `rgba(197,229,49,0.5)`;
+          ctx.font = `${11 * devicePixelRatio}px monospace`;
+          ctx.fillText(`PASS ${st.scanPass + 1}/${st.totalPasses}`, 10 * devicePixelRatio, 20 * devicePixelRatio);
+        } else if (st.phase === "idle" && st.layers.length === 0) {
+          ctx.fillStyle = `rgba(197,229,49,0.3)`;
+          ctx.font = `${11 * devicePixelRatio}px monospace`;
+          ctx.fillText(`HOVER TO SCAN`, 10 * devicePixelRatio, 20 * devicePixelRatio);
+        }
+      }
+
+      // Pass dots
+      for (let i = 0; i < st.totalPasses; i++) {
+        const dotX = w - (st.totalPasses - i) * 14 * devicePixelRatio;
+        const dotY = 16 * devicePixelRatio;
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, 3 * devicePixelRatio, 0, Math.PI * 2);
+        if (i < st.revealedPasses) {
+          ctx.fillStyle = `rgba(197,229,49,0.8)`;
+        } else if (i === st.scanPass) {
+          ctx.fillStyle = `rgba(197,229,49,${0.3 + Math.sin(Date.now() / 200) * 0.2})`;
+        } else {
+          ctx.fillStyle = `rgba(197,229,49,0.1)`;
+        }
+        ctx.fill();
+      }
 
       rafRef.current = requestAnimationFrame(frame);
     }
     frame();
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      canvas.removeEventListener("mouseenter", onMouseEnter);
+      canvas.removeEventListener("mouseleave", onMouseLeave);
+    };
   }, [noise]);
 
   return <canvas ref={canvasRef} className="w-full h-full absolute inset-0" />;
+}
+
+function drawTerrain(
+  ctx: CanvasRenderingContext2D,
+  cols: number,
+  rows: number,
+  cellW: number,
+  cellH: number,
+  offsetY: number,
+  w: number,
+  _h: number,
+  seed: number,
+  alpha: number,
+  color: [number, number, number],
+  revealX: number,
+  noise: (x: number, y: number, seed: number) => number,
+) {
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = col / cols;
+      if (x > revealX) continue;
+
+      const y = row / rows;
+      const screenX = col * cellW;
+      const elevation = noise(x * 4, y * 4, seed) * cellH * 1.5;
+      const screenY = offsetY + row * cellH - elevation;
+
+      // Fade at reveal edge
+      const edgeFade = revealX < 1 ? Math.max(0, 1 - Math.abs(x - revealX) * 15) : 0;
+      const a = alpha + edgeFade * 0.3;
+
+      if (col < cols - 1 && (col + 1) / cols <= revealX) {
+        const nextX = (col + 1) * cellW;
+        const nextElev = noise((col + 1) / cols * 4, y * 4, seed) * cellH * 1.5;
+        const nextY = offsetY + row * cellH - nextElev;
+
+        ctx.beginPath();
+        ctx.moveTo(screenX, screenY);
+        ctx.lineTo(nextX, nextY);
+        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${a})`;
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
+      }
+      if (row < rows - 1) {
+        const nextElev = noise(x * 4, (row + 1) / rows * 4, seed) * cellH * 1.5;
+        const nextY = offsetY + (row + 1) * cellH - nextElev;
+
+        ctx.beginPath();
+        ctx.moveTo(screenX, screenY);
+        ctx.lineTo(screenX, nextY);
+        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${a})`;
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
+      }
+
+      // Vertex dots at reveal edge
+      if (edgeFade > 0.3) {
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, 1.5 * devicePixelRatio, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${edgeFade})`;
+        ctx.fill();
+      }
+    }
+  }
 }
 
 /* ============================================================
