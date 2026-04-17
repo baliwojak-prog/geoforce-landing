@@ -231,8 +231,8 @@ function NeuralMesh() {
     const nodes = Array.from({ length: nodeCount }, () => ({
       x: Math.random(),
       y: Math.random(),
-      vx: (Math.random() - 0.5) * 0.003,
-      vy: (Math.random() - 0.5) * 0.003,
+      vx: (Math.random() - 0.5) * 0.0005,
+      vy: (Math.random() - 0.5) * 0.0005,
       size: 2 + Math.random() * 3,
       pulse: Math.random() * Math.PI * 2,
     }));
@@ -251,20 +251,20 @@ function NeuralMesh() {
 
       // Move nodes
       for (const n of nodes) {
-        // Mouse gravity — stronger pull
+        // Mouse gravity — gentle pull
         if (mouse.active) {
           const dx = mouse.x - n.x;
           const dy = mouse.y - n.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist > 0.01 && dist < 0.6) {
-            const force = 0.0008 / (dist + 0.03);
+          if (dist > 0.01 && dist < 0.4) {
+            const force = 0.00004 / (dist + 0.05);
             n.vx += dx * force;
             n.vy += dy * force;
           }
         }
 
         // Dampen velocity
-        n.vx *= 0.985;
+        n.vx *= 0.998;
         n.vy *= 0.995;
 
         n.x += n.vx;
