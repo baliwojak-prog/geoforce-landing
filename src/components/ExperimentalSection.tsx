@@ -354,9 +354,13 @@ function TerrainScanner() {
   });
 
   const noise = useCallback((x: number, y: number, seed: number) => {
-    const s = Math.sin((x + seed) * 1.2 + y * 0.8) * 0.5 +
-              Math.sin(x * 0.7 - (y + seed) * 1.5) * 0.3 +
-              Math.sin((x + seed * 0.5) * 2.5 + y * 2.1) * 0.2;
+    const a = seed * 0.1 + 1.0;
+    const b = seed * 0.07 + 0.5;
+    const c = seed * 0.13 + 2.0;
+    const s = Math.sin(x * a * 1.2 + y * b * 0.8 + seed) * 0.5 +
+              Math.sin(x * b * 0.7 - y * c * 1.5 + seed * 2.3) * 0.3 +
+              Math.sin(x * c * 2.5 + y * a * 2.1 + seed * 0.7) * 0.2 +
+              Math.sin(x * 3.7 * b + y * 1.3 * a + seed * 4.1) * 0.15;
     return s;
   }, []);
 
@@ -413,10 +417,10 @@ function TerrainScanner() {
 
       // State machine
       if (st.phase === "scanning" && st.hovering) {
-        st.scanProgress += 0.012;
+        st.scanProgress += 0.006;
         if (st.scanProgress >= 1) {
           st.layers.push({
-            seed: st.seed + st.scanPass * 17.3,
+            seed: st.seed + st.scanPass * 137.7 + st.scanPass * st.scanPass * 43.1,
             alpha: 0.15 + (st.scanPass / st.totalPasses) * 0.25,
             color: passColors[st.scanPass % passColors.length],
           });
@@ -480,7 +484,7 @@ function TerrainScanner() {
 
         // Draw current scanning pass
         if (st.phase === "scanning" && st.scanPass < st.totalPasses) {
-          const currentSeed = st.seed + st.scanPass * 17.3;
+          const currentSeed = st.seed + st.scanPass * 137.7 + st.scanPass * st.scanPass * 43.1;
           const currentColor = passColors[st.scanPass % passColors.length];
           const scanX = st.scanProgress;
 
@@ -506,6 +510,8 @@ function TerrainScanner() {
           ctx.font = `${11 * devicePixelRatio}px monospace`;
           ctx.fillText(`PASS ${st.scanPass + 1}/${st.totalPasses}`, 10 * devicePixelRatio, 20 * devicePixelRatio);
         } else if (st.phase === "idle" && st.layers.length === 0) {
+          // Show faint base terrain so it's not blank
+          drawTerrain(ctx, cols, rows, cellW, cellH, offsetY, w, h, st.seed, 0.06, [197, 229, 49], 1.0, noise);
           ctx.fillStyle = `rgba(197,229,49,0.3)`;
           ctx.font = `${11 * devicePixelRatio}px monospace`;
           ctx.fillText(`HOVER TO SCAN`, 10 * devicePixelRatio, 20 * devicePixelRatio);
