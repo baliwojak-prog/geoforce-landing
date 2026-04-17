@@ -344,13 +344,15 @@ function TerrainScanner() {
   const stateRef = useRef({
     hovering: false,
     scanPass: 0,
-    scanProgress: 0, // 0-1 per pass
+    scanProgress: 0,
     totalPasses: 7,
     seed: Math.random() * 1000,
-    revealedPasses: 0,
+    completedPasses: 0,
     phase: "idle" as "idle" | "scanning" | "collapse" | "rebuilding",
     collapseProgress: 0,
-    layers: [] as { seed: number; alpha: number; color: [number, number, number] }[],
+    // Single heightmap that accumulates
+    heightmap: null as Float32Array | null,
+    currentPassRevealed: 0, // how far the current pass scan has reached (column index)
   });
 
   const noise = useCallback((x: number, y: number, seed: number) => {
@@ -397,9 +399,10 @@ function TerrainScanner() {
         st.phase = "scanning";
         st.scanPass = 0;
         st.scanProgress = 0;
-        st.revealedPasses = 0;
-        st.layers = [];
+        st.completedPasses = 0;
         st.seed = Math.random() * 1000;
+        st.heightmap = new Float32Array(cols * rows);
+        st.collapseProgress = 0;
       }
       st.hovering = true;
     }
@@ -412,15 +415,83 @@ function TerrainScanner() {
     const cols = 50;
     const rows = 35;
 
-    const passColors: [number, number, number][] = [
-      [197, 229, 49],   // lime
-      [168, 212, 0],    // green
-      [212, 233, 76],   // yellow-lime
-      [143, 188, 0],    // darker green
-      [197, 229, 49],   // lime
-      [180, 220, 30],   // mid
-      [210, 240, 60],   // bright
-    ];
+    // Build one pass of elevation data and add it to heightmap
+    function addPassToHeightmap(heightmap: Float32Array, passSeed: number) {
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const x = col / cols;
+          const y = row / rows;
+          const elev = noise(x * 4, y * 4, passSeed);
+          heightmap[row * cols + col] += elev;
+        }
+      }
+    }
+
+    function drawHeightmapTerrain(
+      heightmap: Float32Array,
+      alpha: number,
+      yOffset: number,
+      revealCol: number, // -1 = all revealed
+    ) {
+      if (!ctx) return;
+      const w2 = canvas!.width;
+      const h2 = canvas!.height;
+      const cellW2 = w2 / cols;
+      const cellH2 = h2 / rows * 0.55;
+      const baseY = h2 * 0.2 + yOffset;
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          if (revealCol >= 0 && col > revealCol) continue;
+
+          const elev = heightmap[row * cols + col] * cellH2 * 6.0;
+          const sx = col * cellW2;
+          const sy = baseY + row * cellH2 - elev;
+
+          // Brightness based on elevation
+          const elevNorm = Math.min(Math.abs(heightmap[row * cols + col]) / 2, 1);
+          const r = Math.round(143 + elevNorm * 54);
+          const g = Math.round(188 + elevNorm * 41);
+          const b = Math.round(0 + elevNorm * 49);
+
+          // Edge glow at scan line
+          const edgeGlow = (revealCol >= 0 && Math.abs(col - revealCol) < 3) ? 0.5 : 0;
+          const a = alpha + edgeGlow;
+
+          // Horizontal line
+          if (col < cols - 1 && (revealCol < 0 || col + 1 <= revealCol)) {
+            const nextElev = heightmap[row * cols + col + 1] * cellH2 * 6.0;
+            const nx = (col + 1) * cellW2;
+            const ny = baseY + row * cellH2 - nextElev;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(nx, ny);
+            ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
+            ctx.lineWidth = 0.7;
+            ctx.stroke();
+          }
+          // Vertical line
+          if (row < rows - 1) {
+            const nextElev = heightmap[(row + 1) * cols + col] * cellH2 * 6.0;
+            const ny = baseY + (row + 1) * cellH2 - nextElev;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(sx, ny);
+            ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
+            ctx.lineWidth = 0.7;
+            ctx.stroke();
+          }
+
+          // Vertex dot at scan edge
+          if (edgeGlow > 0) {
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1.5 * devicePixelRatio, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(197,229,49,${edgeGlow})`;
+            ctx.fill();
+          }
+        }
+      }
+    }
 
     function frame() {
       if (!canvas || !ctx) return;
@@ -432,20 +503,15 @@ function TerrainScanner() {
       ctx.fillRect(0, 0, w, h);
 
       const st = stateRef.current;
-      const cellW = w / cols;
-      const cellH = h / rows * 0.55;
-      const offsetY = h * 0.2;
 
       // State machine
-      if (st.phase === "scanning" && st.hovering) {
+      if (st.phase === "scanning" && st.hovering && st.heightmap) {
         st.scanProgress += 0.006;
         if (st.scanProgress >= 1) {
-          st.layers.push({
-            seed: st.seed + st.scanPass * 137.7 + st.scanPass * st.scanPass * 43.1,
-            alpha: 0.15 + (st.scanPass / st.totalPasses) * 0.25,
-            color: passColors[st.scanPass % passColors.length],
-          });
-          st.revealedPasses++;
+          // Pass complete — bake this pass into the heightmap
+          const passSeed = st.seed + st.scanPass * 137.7 + st.scanPass * st.scanPass * 43.1;
+          addPassToHeightmap(st.heightmap, passSeed);
+          st.completedPasses++;
           st.scanPass++;
           st.scanProgress = 0;
           if (st.scanPass >= st.totalPasses) {
@@ -462,81 +528,79 @@ function TerrainScanner() {
       } else if (st.phase === "rebuilding") {
         st.collapseProgress += 0.02;
         if (st.collapseProgress >= 1) {
-          // Reset with brand new seed
           st.phase = "idle";
           st.scanPass = 0;
           st.scanProgress = 0;
-          st.revealedPasses = 0;
-          st.layers = [];
+          st.completedPasses = 0;
+          st.heightmap = null;
           st.seed = Math.random() * 1000;
           st.collapseProgress = 0;
         }
       }
 
-      // Draw based on phase
-      if (st.phase === "collapse") {
-        // Collapse animation — terrain falls and fades
+      // Draw
+      if (st.phase === "collapse" && st.heightmap) {
         const collapse = st.collapseProgress;
-        const eased = collapse * collapse; // accelerating fall
-        for (const layer of st.layers) {
-          drawTerrain(ctx, cols, rows, cellW, cellH, offsetY + eased * h * 0.8, w, h,
-            layer.seed, layer.alpha * (1 - collapse), layer.color, 1.0, noise);
-        }
-        // Shake effect
+        const eased = collapse * collapse;
         const shake = Math.sin(collapse * 30) * (1 - collapse) * 3 * devicePixelRatio;
         ctx.save();
         ctx.translate(shake, 0);
+        drawHeightmapTerrain(st.heightmap, 0.35 * (1 - collapse), eased * h * 0.8, -1);
         ctx.restore();
 
         ctx.fillStyle = `rgba(197,229,49,${0.6 * (1 - collapse)})`;
         ctx.font = `${11 * devicePixelRatio}px monospace`;
         ctx.fillText(`COLLAPSE`, 10 * devicePixelRatio, 20 * devicePixelRatio);
+
       } else if (st.phase === "rebuilding") {
-        // Brief dark pause before idle
-        const fade = st.collapseProgress;
-        ctx.fillStyle = `rgba(197,229,49,${0.3 * fade})`;
+        ctx.fillStyle = `rgba(197,229,49,${0.3 * st.collapseProgress})`;
         ctx.font = `${11 * devicePixelRatio}px monospace`;
         ctx.fillText(`RECALIBRATING...`, 10 * devicePixelRatio, 20 * devicePixelRatio);
-      } else {
-        // Draw revealed layers
-        for (const layer of st.layers) {
-          drawTerrain(ctx, cols, rows, cellW, cellH, offsetY, w, h, layer.seed, layer.alpha, layer.color, 1.0, noise);
+
+      } else if (st.phase === "scanning" && st.heightmap) {
+        // Draw accumulated terrain so far
+        drawHeightmapTerrain(st.heightmap, 0.3, 0, -1);
+
+        // Draw current pass being scanned (additive preview)
+        const passSeed = st.seed + st.scanPass * 137.7 + st.scanPass * st.scanPass * 43.1;
+        const revealCol = Math.floor(st.scanProgress * cols);
+
+        // Temp heightmap with current pass added
+        const preview = new Float32Array(st.heightmap);
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col <= revealCol && col < cols; col++) {
+            const x = col / cols;
+            const y = row / rows;
+            preview[row * cols + col] += noise(x * 4, y * 4, passSeed);
+          }
         }
+        drawHeightmapTerrain(preview, 0.35, 0, revealCol);
 
-        // Draw current scanning pass
-        if (st.phase === "scanning" && st.scanPass < st.totalPasses) {
-          const currentSeed = st.seed + st.scanPass * 137.7 + st.scanPass * st.scanPass * 43.1;
-          const currentColor = passColors[st.scanPass % passColors.length];
-          const scanX = st.scanProgress;
+        // Scan beam
+        const beamX = st.scanProgress * w;
+        const grad = ctx.createLinearGradient(beamX - 40, 0, beamX + 40, 0);
+        grad.addColorStop(0, "rgba(197,229,49,0)");
+        grad.addColorStop(0.5, "rgba(197,229,49,0.2)");
+        grad.addColorStop(1, "rgba(197,229,49,0)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(beamX - 40, 0, 80, h);
 
-          drawTerrain(ctx, cols, rows, cellW, cellH, offsetY, w, h, currentSeed, 0.3, currentColor, scanX, noise);
+        ctx.fillStyle = `rgba(197,229,49,0.5)`;
+        ctx.font = `${11 * devicePixelRatio}px monospace`;
+        ctx.fillText(`PASS ${st.scanPass + 1}/${st.totalPasses}`, 10 * devicePixelRatio, 20 * devicePixelRatio);
 
-          // Scan beam
-          const beamX = scanX * w;
-          const grad = ctx.createLinearGradient(beamX - 40, 0, beamX + 40, 0);
-          grad.addColorStop(0, "rgba(197,229,49,0)");
-          grad.addColorStop(0.5, `rgba(${currentColor[0]},${currentColor[1]},${currentColor[2]},0.25)`);
-          grad.addColorStop(1, "rgba(197,229,49,0)");
-          ctx.fillStyle = grad;
-          ctx.fillRect(beamX - 40, 0, 80, h);
-
-          ctx.beginPath();
-          ctx.moveTo(beamX, 0);
-          ctx.lineTo(beamX, h);
-          ctx.strokeStyle = `rgba(${currentColor[0]},${currentColor[1]},${currentColor[2]},0.5)`;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-
-          ctx.fillStyle = `rgba(197,229,49,0.5)`;
-          ctx.font = `${11 * devicePixelRatio}px monospace`;
-          ctx.fillText(`PASS ${st.scanPass + 1}/${st.totalPasses}`, 10 * devicePixelRatio, 20 * devicePixelRatio);
-        } else if (st.phase === "idle" && st.layers.length === 0) {
-          // Show faint base terrain so it's not blank
-          drawTerrain(ctx, cols, rows, cellW, cellH, offsetY, w, h, st.seed, 0.06, [197, 229, 49], 1.0, noise);
-          ctx.fillStyle = `rgba(197,229,49,0.3)`;
-          ctx.font = `${11 * devicePixelRatio}px monospace`;
-          ctx.fillText(`HOVER TO SCAN`, 10 * devicePixelRatio, 20 * devicePixelRatio);
+      } else if (st.phase === "idle") {
+        // Faint flat grid
+        const idle = new Float32Array(cols * rows);
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            idle[row * cols + col] = noise(col / cols * 4, row / rows * 4, st.seed) * 0.15;
+          }
         }
+        drawHeightmapTerrain(idle, 0.06, 0, -1);
+        ctx.fillStyle = `rgba(197,229,49,0.3)`;
+        ctx.font = `${11 * devicePixelRatio}px monospace`;
+        ctx.fillText(`HOVER TO SCAN`, 10 * devicePixelRatio, 20 * devicePixelRatio);
       }
 
       // Pass dots
@@ -545,9 +609,9 @@ function TerrainScanner() {
         const dotY = 16 * devicePixelRatio;
         ctx.beginPath();
         ctx.arc(dotX, dotY, 3 * devicePixelRatio, 0, Math.PI * 2);
-        if (i < st.revealedPasses) {
+        if (i < st.completedPasses) {
           ctx.fillStyle = `rgba(197,229,49,0.8)`;
-        } else if (i === st.scanPass) {
+        } else if (i === st.scanPass && st.phase === "scanning") {
           ctx.fillStyle = `rgba(197,229,49,${0.3 + Math.sin(Date.now() / 200) * 0.2})`;
         } else {
           ctx.fillStyle = `rgba(197,229,49,0.1)`;
@@ -568,69 +632,6 @@ function TerrainScanner() {
   return <canvas ref={canvasRef} className="w-full h-full absolute inset-0" />;
 }
 
-function drawTerrain(
-  ctx: CanvasRenderingContext2D,
-  cols: number,
-  rows: number,
-  cellW: number,
-  cellH: number,
-  offsetY: number,
-  w: number,
-  _h: number,
-  seed: number,
-  alpha: number,
-  color: [number, number, number],
-  revealX: number,
-  noise: (x: number, y: number, seed: number) => number,
-) {
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const x = col / cols;
-      if (x > revealX) continue;
-
-      const y = row / rows;
-      const screenX = col * cellW;
-      const elevation = noise(x * 4, y * 4, seed) * cellH * 6.0;
-      const screenY = offsetY + row * cellH - elevation;
-
-      // Fade at reveal edge
-      const edgeFade = revealX < 1 ? Math.max(0, 1 - Math.abs(x - revealX) * 15) : 0;
-      const a = alpha + edgeFade * 0.3;
-
-      if (col < cols - 1 && (col + 1) / cols <= revealX) {
-        const nextX = (col + 1) * cellW;
-        const nextElev = noise((col + 1) / cols * 4, y * 4, seed) * cellH * 6.0;
-        const nextY = offsetY + row * cellH - nextElev;
-
-        ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(nextX, nextY);
-        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${a})`;
-        ctx.lineWidth = 0.7;
-        ctx.stroke();
-      }
-      if (row < rows - 1) {
-        const nextElev = noise(x * 4, (row + 1) / rows * 4, seed) * cellH * 6.0;
-        const nextY = offsetY + (row + 1) * cellH - nextElev;
-
-        ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(screenX, nextY);
-        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${a})`;
-        ctx.lineWidth = 0.7;
-        ctx.stroke();
-      }
-
-      // Vertex dots at reveal edge
-      if (edgeFade > 0.3) {
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, 1.5 * devicePixelRatio, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${edgeFade})`;
-        ctx.fill();
-      }
-    }
-  }
-}
 
 /* ============================================================
    EXPERIMENTAL SECTION — Layout
