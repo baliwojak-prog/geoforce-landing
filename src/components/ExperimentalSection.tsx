@@ -354,14 +354,35 @@ function TerrainScanner() {
   });
 
   const noise = useCallback((x: number, y: number, seed: number) => {
-    const a = seed * 0.1 + 1.0;
-    const b = seed * 0.07 + 0.5;
-    const c = seed * 0.13 + 2.0;
-    const s = Math.sin(x * a * 1.2 + y * b * 0.8 + seed) * 0.5 +
-              Math.sin(x * b * 0.7 - y * c * 1.5 + seed * 2.3) * 0.3 +
-              Math.sin(x * c * 2.5 + y * a * 2.1 + seed * 0.7) * 0.2 +
-              Math.sin(x * 3.7 * b + y * 1.3 * a + seed * 4.1) * 0.15;
-    return s;
+    // Generate 2-3 mountain cluster centers from seed
+    const rng = (n: number) => {
+      const s = Math.sin(seed * 127.1 + n * 311.7) * 43758.5453;
+      return s - Math.floor(s);
+    };
+    const numPeaks = 2 + Math.floor(rng(0) * 2); // 2-3 peaks
+
+    let elevation = 0;
+    for (let i = 0; i < numPeaks; i++) {
+      const cx = rng(i * 3 + 1); // cluster center x (0-1)
+      const cy = rng(i * 3 + 2); // cluster center y (0-1)
+      const spread = 0.15 + rng(i * 3 + 3) * 0.2; // how wide the mountain range
+      const height = 0.5 + rng(i * 3 + 4) * 0.5; // peak height
+
+      const dx = (x / 4) - cx;
+      const dy = (y / 4) - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      // Gaussian-ish mountain with ridgeline detail
+      const mountain = Math.exp(-(dist * dist) / (2 * spread * spread));
+      const ridge = Math.sin(x * 2.5 + seed + i * 7.3) * 0.15 +
+                    Math.sin(y * 3.1 + seed * 0.7 + i * 4.1) * 0.1;
+      elevation += (mountain + ridge * mountain) * height;
+    }
+
+    // Subtle low-frequency terrain base
+    elevation += (Math.sin(x * 0.8 + seed) * Math.sin(y * 0.6 + seed * 0.5)) * 0.08;
+
+    return elevation;
   }, []);
 
   useEffect(() => {
@@ -569,7 +590,7 @@ function drawTerrain(
 
       const y = row / rows;
       const screenX = col * cellW;
-      const elevation = noise(x * 4, y * 4, seed) * cellH * 4.5;
+      const elevation = noise(x * 4, y * 4, seed) * cellH * 3.0;
       const screenY = offsetY + row * cellH - elevation;
 
       // Fade at reveal edge
@@ -578,7 +599,7 @@ function drawTerrain(
 
       if (col < cols - 1 && (col + 1) / cols <= revealX) {
         const nextX = (col + 1) * cellW;
-        const nextElev = noise((col + 1) / cols * 4, y * 4, seed) * cellH * 4.5;
+        const nextElev = noise((col + 1) / cols * 4, y * 4, seed) * cellH * 3.0;
         const nextY = offsetY + row * cellH - nextElev;
 
         ctx.beginPath();
@@ -589,7 +610,7 @@ function drawTerrain(
         ctx.stroke();
       }
       if (row < rows - 1) {
-        const nextElev = noise(x * 4, (row + 1) / rows * 4, seed) * cellH * 4.5;
+        const nextElev = noise(x * 4, (row + 1) / rows * 4, seed) * cellH * 3.0;
         const nextY = offsetY + (row + 1) * cellH - nextElev;
 
         ctx.beginPath();
